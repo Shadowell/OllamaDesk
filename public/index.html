@@ -69,11 +69,15 @@
         </section>
 
         <footer class="composer-area">
+          <div id="attachmentTray" class="attachment-tray" aria-live="polite"></div>
           <form id="composer" class="composer">
             <div class="composer-main">
               <textarea id="promptInput" rows="1" placeholder="输入消息，Enter 发送"></textarea>
             </div>
             <div class="composer-toolbar">
+              <button id="attachButton" type="button" class="composer-icon" title="上传图片" aria-label="上传图片">
+                <span class="icon" data-icon="paperclip" aria-hidden="true"></span>
+              </button>
               <select id="modelSelect" class="model-select" aria-label="选择模型"></select>
               <div class="composer-spacer"></div>
               <div class="status-mini" id="statusDetail">Ollama</div>
@@ -81,6 +85,7 @@
                 <span class="icon" data-icon="send" aria-hidden="true"></span>
               </button>
             </div>
+            <input id="fileInput" type="file" accept="image/*" multiple hidden />
           </form>
         </footer>
       </main>

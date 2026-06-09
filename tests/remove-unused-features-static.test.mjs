@@ -23,16 +23,18 @@ test("sidebar removes unused search, image, generation, and capability entries",
   }
 
   assert.doesNotMatch(html, />搜索</);
-  assert.doesNotMatch(html, />上传图片</);
   assert.doesNotMatch(html, />图片生成</);
   assert.doesNotMatch(html, />能力</);
   assert.doesNotMatch(html, />图片理解</);
 });
 
-test("composer no longer exposes image attachment controls", () => {
-  for (const removed of ["attachButton", "fileInput", "attachmentTray", "imagePanel"]) {
-    assert.doesNotMatch(html, new RegExp(`id="${removed}"`));
+test("composer keeps the upload entry available", () => {
+  for (const required of ["attachButton", "fileInput", "attachmentTray"]) {
+    assert.match(html, new RegExp(`id="${required}"`));
   }
+  assert.match(html, /aria-label="上传图片"/);
+  assert.match(html, /accept="image\/\*"/);
+  assert.doesNotMatch(html, /id="imagePanel"/);
 });
 
 test("app javascript no longer wires removed feature controls", () => {
@@ -40,16 +42,12 @@ test("app javascript no longer wires removed feature controls", () => {
     "extractToolAction",
     "imageUploadNavButton",
     "imageGenerateNavButton",
-    "attachButton",
-    "fileInput",
-    "attachmentTray",
     "imagePanel",
     "ollamaCapability",
     "visionCapability",
     "imageCapability",
     "markdownCapability",
     "prepareImageGenerationPrompt",
-    "createImageGrid",
     "generatedImages",
     "/api/images/generate"
   ]) {

@@ -21,6 +21,7 @@ test("core controls expose usable Chinese labels and mobile access", () => {
   assert.match(html, /id="mobileMenuButton"/);
   assert.match(html, /aria-label="打开侧栏"/);
   assert.match(html, /aria-label="清空当前对话"/);
+  assert.match(html, /aria-label="上传图片"/);
   assert.match(html, /aria-label="发送消息"/);
   assert.match(html, /aria-label="选择模型"/);
 
@@ -28,8 +29,8 @@ test("core controls expose usable Chinese labels and mobile access", () => {
   assert.doesNotMatch(appJs, /New conversation|You|Unknown error|Generated image|Remove image/);
 });
 
-test("removed image workflows are not exposed as unavailable controls", () => {
-  assert.doesNotMatch(html, /上传图片|图片生成|图片理解/);
-  assert.doesNotMatch(html, /id="composerNotice"|id="imageSetupHelp"|aria-label="上传图片"/);
+test("removed image generation workflow is not exposed as an unavailable control", () => {
+  assert.doesNotMatch(html, /图片生成|图片理解/);
+  assert.doesNotMatch(html, /id="composerNotice"|id="imageSetupHelp"/);
   assert.doesNotMatch(appJs, /showComposerNotice|OPENAI_API_KEY|prepareImageGenerationPrompt/);
 });

@@ -14,6 +14,7 @@ test("sidebar and toolbar icons use one data-icon contract instead of mixed glyp
     "settings",
     "menu",
     "trash",
+    "paperclip",
     "send",
     "x"
   ]) {
@@ -21,7 +22,7 @@ test("sidebar and toolbar icons use one data-icon contract instead of mixed glyp
   }
 
   assert.doesNotMatch(html, /[⌕▧✦▤●☰↑]/);
-  assert.doesNotMatch(html, /data-icon="search"|data-icon="image-up"|data-icon="sparkles"|data-icon="paperclip"/);
+  assert.doesNotMatch(html, /data-icon="search"|data-icon="image-up"|data-icon="sparkles"/);
 });
 
 test("app renders inline svg icons from a single map", () => {
@@ -33,5 +34,6 @@ test("app renders inline svg icons from a single map", () => {
 test("icons share stable sizing and optical alignment", () => {
   assert.match(css, /\.icon\s*{[\s\S]*width:\s*18px;[\s\S]*height:\s*18px;/);
   assert.match(css, /\.icon svg\s*{[\s\S]*stroke-width:\s*2;/);
+  assert.match(css, /\.composer-icon \.icon\s*{[\s\S]*width:\s*17px;[\s\S]*height:\s*17px;/);
   assert.match(css, /\.send-button \.icon,\n\.top-icon-button \.icon,\n\.mobile-menu-button \.icon,\n\.settings-close \.icon\s*{[\s\S]*width:\s*16px;[\s\S]*height:\s*16px;/);
 });

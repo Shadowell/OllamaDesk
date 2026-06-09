@@ -24,6 +24,9 @@ const icons = {
     <path d="M10 11v6"></path>
     <path d="M14 11v6"></path>
   `,
+  paperclip: `
+    <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+  `,
   send: `
     <path d="m22 2-7 20-4-9-9-4Z"></path>
     <path d="M22 2 11 13"></path>
@@ -50,6 +53,9 @@ const elements = {
   messages: document.querySelector("#messages"),
   composer: document.querySelector("#composer"),
   promptInput: document.querySelector("#promptInput"),
+  attachButton: document.querySelector("#attachButton"),
+  fileInput: document.querySelector("#fileInput"),
+  attachmentTray: document.querySelector("#attachmentTray"),
   sendButton: document.querySelector("#sendButton"),
   statusDot: document.querySelector("#statusDot"),
   statusText: document.querySelector("#statusText"),
@@ -68,6 +74,7 @@ let activeSessionId = sessions[0]?.id || createSession().id;
 let isSending = false;
 let latestStatus = null;
 let shouldAutoScrollMessages = true;
+let attachments = [];
 
 init();
 
@@ -91,9 +98,19 @@ function createIconSvg(paths) {
   return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${paths}</svg>`;
 }
 
+function createIcon(name) {
+  const node = document.createElement("span");
+  node.className = "icon";
+  node.dataset.icon = name;
+  node.setAttribute("aria-hidden", "true");
+  if (icons[name]) node.innerHTML = createIconSvg(icons[name]);
+  return node;
+}
+
 function bindEvents() {
   elements.newChatButton.addEventListener("click", () => {
     activeSessionId = createSession().id;
+    attachments = [];
     shouldAutoScrollMessages = true;
     setSidebarOpen(false);
     saveSessions();
@@ -110,6 +127,11 @@ function bindEvents() {
   });
   elements.clearButton.addEventListener("click", clearActiveSession);
   elements.modelSelect.addEventListener("change", () => renderCapabilityStatus(latestStatus));
+  elements.attachButton.addEventListener("click", () => elements.fileInput.click());
+  elements.fileInput.addEventListener("change", (event) => {
+    addFiles(Array.from(event.target.files || []));
+    elements.fileInput.value = "";
+  });
   elements.dropZone.addEventListener("scroll", () => {
     shouldAutoScrollMessages = isNearConversationBottom();
   });
@@ -176,6 +198,7 @@ function getActiveSession() {
 function render() {
   renderThreads();
   renderMessages();
+  renderAttachments();
   updateControls();
 }
 
@@ -203,6 +226,7 @@ function renderThreads() {
     button.querySelector(".thread-title").textContent = session.title;
     button.addEventListener("click", () => {
       activeSessionId = session.id;
+      attachments = [];
       shouldAutoScrollMessages = true;
       setSidebarOpen(false);
       render();
@@ -252,21 +276,101 @@ function createMessageNode(message) {
   text.innerHTML = renderMarkdown(message.pending && !message.content ? "正在思考..." : message.content || "");
 
   bubble.append(role, text);
+  if (message.images?.length) {
+    bubble.appendChild(createImageGrid(message.images));
+  }
 
   node.append(avatar, bubble);
   return node;
+}
+
+function createImageGrid(images, className = "message-images") {
+  const grid = document.createElement("div");
+  grid.className = className;
+  images.forEach((image, index) => {
+    const item = document.createElement("img");
+    const src = typeof image === "string" ? `data:image/png;base64,${image}` : image.preview;
+    item.src = src;
+    item.alt = typeof image === "string" ? `图片 ${index + 1}` : image.name || `图片 ${index + 1}`;
+    grid.appendChild(item);
+  });
+  return grid;
+}
+
+function renderAttachments() {
+  elements.attachmentTray.innerHTML = "";
+  elements.attachmentTray.hidden = attachments.length === 0;
+  attachments.forEach((attachment, index) => {
+    const thumb = document.createElement("div");
+    thumb.className = "attachment-thumb";
+
+    const image = document.createElement("img");
+    image.src = attachment.preview;
+    image.alt = attachment.name || `图片 ${index + 1}`;
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "remove-attachment";
+    remove.title = "移除图片";
+    remove.setAttribute("aria-label", "移除图片");
+    remove.appendChild(createIcon("x"));
+    remove.addEventListener("click", () => {
+      attachments.splice(index, 1);
+      renderAttachments();
+      updateControls();
+      elements.promptInput.focus();
+    });
+
+    thumb.append(image, remove);
+    elements.attachmentTray.appendChild(thumb);
+  });
+}
+
+async function addFiles(files) {
+  const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+  if (!imageFiles.length) return;
+  const nextAttachments = await Promise.all(
+    imageFiles.map(async (file) => {
+      const preview = await fileToDataUrl(file);
+      return {
+        name: file.name,
+        type: file.type,
+        preview,
+        base64: preview.split(",")[1] || ""
+      };
+    })
+  );
+  attachments = attachments.concat(nextAttachments);
+  renderAttachments();
+  updateControls();
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result || "")));
+    reader.addEventListener("error", () => reject(reader.error || new Error("图片读取失败")));
+    reader.readAsDataURL(file);
+  });
 }
 
 async function sendMessage() {
   if (isSending) return;
 
   const prompt = elements.promptInput.value.trim();
-  if (!prompt) return;
+  if (!prompt && !attachments.length) return;
 
   const session = getActiveSession();
+  const imagePayload = attachments.map((attachment) => ({
+    name: attachment.name,
+    type: attachment.type,
+    preview: attachment.preview,
+    base64: attachment.base64
+  }));
   const userMessage = {
     role: "user",
-    content: prompt,
+    content: prompt || "请分析这张图片。",
+    images: imagePayload,
     createdAt: Date.now()
   };
 
@@ -284,6 +388,7 @@ async function sendMessage() {
   }
 
   elements.promptInput.value = "";
+  attachments = [];
   shouldAutoScrollMessages = true;
   autoSizeComposer();
   saveSessions();
@@ -310,10 +415,16 @@ async function sendMessage() {
 async function streamChat(session, assistantMessage) {
   const messages = session.messages
     .filter((message) => message.role === "user" || message.role === "assistant")
-    .map((message) => ({
-      role: message.role,
-      content: message.content || ""
-    }));
+    .map((message) => {
+      const mapped = {
+        role: message.role,
+        content: message.content || ""
+      };
+      if (message.role === "user" && message.images?.length) {
+        mapped.images = message.images.map((image) => image.base64);
+      }
+      return mapped;
+    });
 
   const response = await fetch("/api/chat", {
     method: "POST",
@@ -488,6 +599,7 @@ function clearActiveSession() {
   session.messages = [];
   session.title = emptySessionTitle;
   session.updatedAt = Date.now();
+  attachments = [];
   shouldAutoScrollMessages = true;
   saveSessions();
   render();
@@ -499,7 +611,7 @@ function setSending(value) {
 }
 
 function updateControls() {
-  const hasContent = elements.promptInput.value.trim();
+  const hasContent = elements.promptInput.value.trim() || attachments.length;
   elements.sendButton.disabled = isSending || !hasContent;
   elements.sendButton.setAttribute("aria-busy", String(isSending));
 }
