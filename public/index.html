@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OllamaDesk</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2324272a'/%3E%3Ctext x='32' y='41' text-anchor='middle' font-size='30' fill='white' font-family='Arial'%3EO%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside id="sidebar" class="sidebar" aria-label="侧栏">
+        <div class="brand-block">
+          <div>
+            <strong>OllamaDesk</strong>
+            <span>本地模型对话</span>
+          </div>
+          <span class="device-pill">本机</span>
+        </div>
+
+        <div class="primary-actions">
+          <button id="newChatButton" class="sidebar-action active" type="button">
+            <span class="action-icon icon" data-icon="message-plus" aria-hidden="true"></span>
+            <span>新对话</span>
+            <kbd>⌘N</kbd>
+          </button>
+        </div>
+
+        <div class="sidebar-section conversation-section">
+          <div class="section-header">
+            <p class="section-label">对话</p>
+            <small id="threadCount">0</small>
+          </div>
+          <div id="threadList" class="thread-list" aria-label="对话列表"></div>
+        </div>
+
+        <div class="sidebar-bottom">
+          <button id="settingsButton" class="settings-button" type="button">
+            <span class="action-icon icon" data-icon="settings" aria-hidden="true"></span>
+            <span>设置</span>
+          </button>
+        </div>
+      </aside>
+      <button id="sidebarBackdrop" class="sidebar-backdrop" type="button" aria-label="关闭侧栏" hidden></button>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="打开侧栏">
+            <span class="icon" data-icon="menu" aria-hidden="true"></span>
+          </button>
+          <h1 id="activeTitle">新对话</h1>
+          <div class="topbar-actions">
+            <div class="runtime-pill" title="Ollama status">
+              <span id="statusDot" class="status-dot"></span>
+              <span id="statusText">连接中</span>
+            </div>
+            <button id="clearButton" class="top-icon-button" title="清空当前对话" aria-label="清空当前对话">
+              <span class="icon" data-icon="trash" aria-hidden="true"></span>
+            </button>
+          </div>
+        </header>
+
+        <section id="dropZone" class="conversation-wrap">
+          <div id="emptyState" class="empty-state">
+            <h2>OllamaDesk</h2>
+            <p id="connectionLabel">正在连接本机 Ollama</p>
+          </div>
+          <div id="messages" class="messages" aria-live="polite"></div>
+        </section>
+
+        <footer class="composer-area">
+          <form id="composer" class="composer">
+            <div class="composer-main">
+              <textarea id="promptInput" rows="1" placeholder="输入消息，Enter 发送"></textarea>
+            </div>
+            <div class="composer-toolbar">
+              <select id="modelSelect" class="model-select" aria-label="选择模型"></select>
+              <div class="composer-spacer"></div>
+              <div class="status-mini" id="statusDetail">Ollama</div>
+              <button id="sendButton" type="submit" class="send-button" aria-label="发送消息">
+                <span class="icon" data-icon="send" aria-hidden="true"></span>
+              </button>
+            </div>
+          </form>
+        </footer>
+      </main>
+
+      <section id="settingsPanel" class="settings-panel" hidden aria-label="设置面板">
+        <div class="settings-card">
+          <header class="settings-header">
+            <div>
+              <h2>设置</h2>
+              <p>当前运行能力和本地会话状态</p>
+            </div>
+            <button id="settingsCloseButton" class="settings-close" type="button" aria-label="关闭设置">
+              <span class="icon" data-icon="x" aria-hidden="true"></span>
+            </button>
+          </header>
+          <dl class="settings-list">
+            <div>
+              <dt>Ollama</dt>
+              <dd id="settingsOllamaStatus">检测中</dd>
+            </div>
+            <div>
+              <dt>当前模型</dt>
+              <dd id="settingsModelStatus">检测中</dd>
+            </div>
+            <div>
+              <dt>Markdown</dt>
+              <dd id="settingsMarkdownStatus">已启用</dd>
+            </div>
+            <div>
+              <dt>会话存储</dt>
+              <dd id="settingsStorageStatus">浏览器本地</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
