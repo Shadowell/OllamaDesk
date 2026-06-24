@@ -37,6 +37,17 @@ test("composer shows the selected model in one place only", () => {
   assert.doesNotMatch(css, /\.status-mini/);
 });
 
+test("settings panel opens from the sidebar side", () => {
+  const settingsPanelBlock = css.match(/\.settings-panel\s*{[\s\S]*?\n}/)?.[0] || "";
+  const settingsCardBlock = css.match(/\.settings-card\s*{[\s\S]*?\n}/)?.[0] || "";
+
+  assert.match(settingsPanelBlock, /justify-content:\s*flex-start;/);
+  assert.match(settingsCardBlock, /border-right:/);
+  assert.match(settingsCardBlock, /box-shadow:\s*18px 0 60px/);
+  assert.doesNotMatch(settingsPanelBlock, /justify-content:\s*flex-end;/);
+  assert.doesNotMatch(settingsCardBlock, /border-left:/);
+});
+
 test("removed image generation workflow is not exposed as an unavailable control", () => {
   assert.doesNotMatch(html, /图片生成|图片理解/);
   assert.doesNotMatch(html, /id="composerNotice"|id="imageSetupHelp"/);

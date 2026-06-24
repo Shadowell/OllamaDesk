@@ -988,7 +988,7 @@ button { cursor: pointer; }
   inset: 0;
   z-index: 20;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   background: rgba(0, 0, 0, 0.15);
   backdrop-filter: blur(4px);
 }
@@ -997,11 +997,11 @@ button { cursor: pointer; }
   width: min(390px, 100%);
   height: 100%;
   padding: 24px;
-  border-left: 1px solid rgba(0, 0, 0, 0.06);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
   background:
     radial-gradient(ellipse 100% 30% at 50% 0%, rgba(217, 119, 62, 0.02), transparent),
     #fafafa;
-  box-shadow: -18px 0 60px rgba(0, 0, 0, 0.08);
+  box-shadow: 18px 0 60px rgba(0, 0, 0, 0.08);
 }
 
 .settings-header {
