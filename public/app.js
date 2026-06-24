@@ -561,7 +561,7 @@ function renderCapabilityStatus(status) {
   elements.connectionLabel.textContent = safeStatus.ok ? "Ollama 已连接" : "Ollama 未连接";
 
   elements.statusDetail.className = `status-mini ${safeStatus.ok ? "status-ok" : "status-error"}`;
-  elements.statusDetail.textContent = safeStatus.ok ? `模型：${selectedName}` : "本机服务离线";
+  elements.statusDetail.textContent = safeStatus.ok ? selectedName : "服务离线";
 
   elements.settingsOllamaStatus.textContent = safeStatus.ok
     ? `在线${safeStatus.version ? ` · ${safeStatus.version}` : ""}`
