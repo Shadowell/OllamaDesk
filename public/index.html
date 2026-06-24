@@ -9,7 +9,7 @@
   </head>
   <body>
     <div class="app-shell">
-      <aside id="sidebar" class="sidebar" aria-label="侧栏">
+      <aside id="sidebar" class="sidebar" aria-label="会话侧栏">
         <div class="brand-block">
           <div>
             <strong>OllamaDesk</strong>
@@ -19,7 +19,7 @@
         </div>
 
         <div class="primary-actions">
-          <button id="newChatButton" class="sidebar-action active" type="button">
+          <button id="newChatButton" class="sidebar-action" type="button">
             <span class="action-icon icon" data-icon="message-plus" aria-hidden="true"></span>
             <span>新对话</span>
             <kbd>⌘N</kbd>
@@ -28,10 +28,10 @@
 
         <div class="sidebar-section conversation-section">
           <div class="section-header">
-            <p class="section-label">对话</p>
+            <p class="section-label">历史</p>
             <small id="threadCount">0</small>
           </div>
-          <div id="threadList" class="thread-list" aria-label="对话列表"></div>
+          <div id="threadList" class="thread-list" aria-label="历史对话列表"></div>
         </div>
 
         <div class="sidebar-bottom">
@@ -48,7 +48,10 @@
           <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="打开侧栏">
             <span class="icon" data-icon="menu" aria-hidden="true"></span>
           </button>
-          <h1 id="activeTitle">新对话</h1>
+          <div class="topbar-title">
+            <p>当前会话</p>
+            <h1 id="activeTitle">新对话</h1>
+          </div>
           <div class="topbar-actions">
             <div class="runtime-pill" title="Ollama status">
               <span id="statusDot" class="status-dot"></span>
@@ -70,22 +73,22 @@
 
         <footer class="composer-area">
           <div id="attachmentTray" class="attachment-tray" aria-live="polite"></div>
-          <form id="composer" class="composer">
+          <form id="composer" class="composer" aria-label="发送消息" autocomplete="off">
             <div class="composer-main">
-              <textarea id="promptInput" rows="1" placeholder="输入消息，Enter 发送"></textarea>
+              <label class="sr-only" for="promptInput">消息内容</label>
+              <textarea id="promptInput" name="prompt" rows="1" placeholder="向本地模型发送消息，Enter 发送"></textarea>
             </div>
             <div class="composer-toolbar">
               <button id="attachButton" type="button" class="composer-icon" title="上传图片" aria-label="上传图片">
                 <span class="icon" data-icon="paperclip" aria-hidden="true"></span>
               </button>
               <div class="composer-spacer"></div>
-              <div class="status-mini" id="statusDetail">Ollama</div>
-              <select id="modelSelect" class="model-select" aria-label="选择模型"></select>
+              <select id="modelSelect" name="model" class="model-select" aria-label="选择模型"></select>
               <button id="sendButton" type="submit" class="send-button" aria-label="发送消息">
                 <span class="icon" data-icon="send" aria-hidden="true"></span>
               </button>
             </div>
-            <input id="fileInput" type="file" accept="image/*" multiple hidden />
+            <input id="fileInput" name="images" type="file" accept="image/*" multiple hidden />
           </form>
         </footer>
       </main>

@@ -59,7 +59,6 @@ const elements = {
   sendButton: document.querySelector("#sendButton"),
   statusDot: document.querySelector("#statusDot"),
   statusText: document.querySelector("#statusText"),
-  statusDetail: document.querySelector("#statusDetail"),
   settingsButton: document.querySelector("#settingsButton"),
   settingsPanel: document.querySelector("#settingsPanel"),
   settingsCloseButton: document.querySelector("#settingsCloseButton"),
@@ -109,13 +108,7 @@ function createIcon(name) {
 
 function bindEvents() {
   elements.newChatButton.addEventListener("click", () => {
-    activeSessionId = createSession().id;
-    attachments = [];
-    shouldAutoScrollMessages = true;
-    setSidebarOpen(false);
-    saveSessions();
-    render();
-    elements.promptInput.focus();
+    startNewSession();
   });
 
   elements.mobileMenuButton?.addEventListener("click", () => setSidebarOpen(true));
@@ -153,6 +146,12 @@ function bindEvents() {
   });
 
   document.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
+      event.preventDefault();
+      startNewSession();
+      return;
+    }
+
     if (event.key !== "Escape") return;
     if (!elements.settingsPanel.hidden) setSettingsPanelOpen(false);
     setSidebarOpen(false);
@@ -186,6 +185,16 @@ function createSession() {
   return session;
 }
 
+function startNewSession() {
+  activeSessionId = createSession().id;
+  attachments = [];
+  shouldAutoScrollMessages = true;
+  setSidebarOpen(false);
+  saveSessions();
+  render();
+  elements.promptInput.focus();
+}
+
 function getActiveSession() {
   let session = sessions.find((item) => item.id === activeSessionId);
   if (!session) {
@@ -216,9 +225,14 @@ function renderThreads() {
   }
 
   visible.forEach((session) => {
+    const isActive = session.id === activeSessionId;
+    const row = document.createElement("div");
+    row.className = `thread-row ${isActive ? "active" : ""}`;
+
     const button = document.createElement("button");
-    button.className = `thread-item ${session.id === activeSessionId ? "active" : ""}`;
+    button.className = "thread-item";
     button.type = "button";
+    if (isActive) button.setAttribute("aria-current", "page");
     button.innerHTML = `
       <div class="thread-title"></div>
       <div class="thread-meta">${session.messages.length} 条 · ${formatTime(session.updatedAt)}</div>
@@ -231,7 +245,21 @@ function renderThreads() {
       setSidebarOpen(false);
       render();
     });
-    elements.threadList.appendChild(button);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "thread-delete";
+    deleteButton.title = `删除对话：${session.title}`;
+    deleteButton.setAttribute("aria-label", `删除对话：${session.title}`);
+    deleteButton.disabled = isSending && isActive;
+    deleteButton.appendChild(createIcon("trash"));
+    deleteButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteSession(session.id);
+    });
+
+    row.append(button, deleteButton);
+    elements.threadList.appendChild(row);
   });
 }
 
@@ -258,18 +286,20 @@ function renderMessages() {
 
 function createMessageNode(message) {
   const node = document.createElement("article");
-  node.className = `message ${message.role}`;
+  const roleLabel = message.role === "user" ? "我" : "Agent";
+  node.className = `message ${message.role} message-${message.role}`;
+  node.setAttribute("aria-label", `${roleLabel}消息`);
 
   const avatar = document.createElement("div");
   avatar.className = "avatar";
-  avatar.textContent = message.role === "user" ? "你" : "OD";
+  avatar.textContent = message.role === "user" ? "我" : "AI";
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
 
   const role = document.createElement("div");
   role.className = "message-role";
-  role.textContent = message.role === "user" ? "你" : "OllamaDesk";
+  role.textContent = roleLabel;
 
   const text = document.createElement("div");
   text.className = `message-text ${message.pending ? "pending" : ""}`;
@@ -560,9 +590,6 @@ function renderCapabilityStatus(status) {
   elements.statusText.textContent = safeStatus.ok ? "在线" : "离线";
   elements.connectionLabel.textContent = safeStatus.ok ? "Ollama 已连接" : "Ollama 未连接";
 
-  elements.statusDetail.className = `status-mini ${safeStatus.ok ? "status-ok" : "status-error"}`;
-  elements.statusDetail.textContent = safeStatus.ok ? selectedName : "服务离线";
-
   elements.settingsOllamaStatus.textContent = safeStatus.ok
     ? `在线${safeStatus.version ? ` · ${safeStatus.version}` : ""}`
     : safeStatus.error || "无法连接";
@@ -603,6 +630,28 @@ function clearActiveSession() {
   shouldAutoScrollMessages = true;
   saveSessions();
   render();
+}
+
+function deleteSession(sessionId) {
+  const sessionIndex = sessions.findIndex((item) => item.id === sessionId);
+  if (sessionIndex === -1) return;
+  if (isSending && sessionId === activeSessionId) return;
+
+  const session = sessions[sessionIndex];
+  const confirmed = window.confirm(`删除对话“${session.title}”？这只会清除本机浏览器里的历史。`);
+  if (!confirmed) return;
+
+  sessions.splice(sessionIndex, 1);
+  if (sessionId === activeSessionId) {
+    activeSessionId =
+      sessions[sessionIndex]?.id || sessions[sessionIndex - 1]?.id || createSession().id;
+    attachments = [];
+    shouldAutoScrollMessages = true;
+  }
+
+  saveSessions();
+  render();
+  renderCapabilityStatus(latestStatus);
 }
 
 function setSending(value) {

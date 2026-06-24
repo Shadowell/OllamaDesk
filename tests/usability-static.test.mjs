@@ -29,6 +29,14 @@ test("core controls expose usable Chinese labels and mobile access", () => {
   assert.doesNotMatch(appJs, /New conversation|You|Unknown error|Generated image|Remove image/);
 });
 
+test("composer shows the selected model in one place only", () => {
+  assert.equal((html.match(/id="modelSelect"/g) || []).length, 1);
+  assert.doesNotMatch(html, /id="statusDetail"/);
+  assert.doesNotMatch(html, /class="status-mini"/);
+  assert.doesNotMatch(appJs, /statusDetail/);
+  assert.doesNotMatch(css, /\.status-mini/);
+});
+
 test("removed image generation workflow is not exposed as an unavailable control", () => {
   assert.doesNotMatch(html, /图片生成|图片理解/);
   assert.doesNotMatch(html, /id="composerNotice"|id="imageSetupHelp"/);

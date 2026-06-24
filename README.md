@@ -18,6 +18,8 @@ http://127.0.0.1:3217
 
 - Local Ollama status and model picker
 - Chat sessions saved in browser local storage
+- Role-aligned chat layout with Agent on the left and user messages on the right
+- Deletable local chat history from the sidebar
 - Streaming responses through a local Node proxy
 - Markdown rendering for assistant responses
 - Mobile-friendly sidebar and composer
