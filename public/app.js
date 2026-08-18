@@ -1,6 +1,13 @@
-import { renderMarkdown } from "./markdown.js";
+import { filterImageFiles, prepareImageFile } from "./attachments.js";
+import { toOllamaMessages } from "./chat-context.js";
+import { renderMarkdown, renderStreamingMarkdown } from "./markdown.js";
+import {
+  loadSessions as readStoredSessions,
+  persistSessions,
+  readStoredModel,
+  writeStoredModel
+} from "./session-store.js";
 
-const storageKey = "ollama-desk:sessions:v1";
 const emptySessionTitle = "新对话";
 const icons = {
   "message-plus": `
@@ -34,6 +41,9 @@ const icons = {
   x: `
     <path d="M18 6 6 18"></path>
     <path d="m6 6 12 12"></path>
+  `,
+  square: `
+    <rect x="7" y="7" width="10" height="10"></rect>
   `
 };
 
@@ -68,21 +78,32 @@ const elements = {
   settingsStorageStatus: document.querySelector("#settingsStorageStatus")
 };
 
-let sessions = loadSessions();
-let activeSessionId = sessions[0]?.id || createSession().id;
+let sessions = [];
+let activeSessionId = "";
 let isSending = false;
 let latestStatus = null;
 let shouldAutoScrollMessages = true;
 let attachments = [];
+let activeChatAbort = null;
+let pendingStreamMessage = null;
+let streamRenderFrame = 0;
 
-init();
+boot();
+
+async function boot() {
+  sessions = await readStoredSessions();
+  activeSessionId = sessions[0]?.id || createSession().id;
+  init();
+}
 
 function init() {
   renderIcons();
   bindEvents();
   refreshStatus();
   render();
-  setInterval(refreshStatus, 15000);
+  setInterval(() => {
+    if (!document.hidden) refreshStatus();
+  }, 15000);
 }
 
 function renderIcons() {
@@ -119,7 +140,13 @@ function bindEvents() {
     if (event.target === elements.settingsPanel) setSettingsPanelOpen(false);
   });
   elements.clearButton.addEventListener("click", clearActiveSession);
-  elements.modelSelect.addEventListener("change", () => renderCapabilityStatus(latestStatus));
+  elements.modelSelect.addEventListener("change", () => {
+    const session = getActiveSession();
+    session.model = elements.modelSelect.value;
+    writeStoredModel(session.model);
+    saveSessions();
+    renderCapabilityStatus(latestStatus);
+  });
   elements.attachButton.addEventListener("click", () => elements.fileInput.click());
   elements.fileInput.addEventListener("change", (event) => {
     addFiles(Array.from(event.target.files || []));
@@ -153,24 +180,21 @@ function bindEvents() {
     }
 
     if (event.key !== "Escape") return;
+    if (isSending) {
+      abortActiveChat();
+      return;
+    }
     if (!elements.settingsPanel.hidden) setSettingsPanelOpen(false);
     setSidebarOpen(false);
   });
-}
 
-function loadSessions() {
-  try {
-    const raw = localStorage.getItem(storageKey);
-    const parsed = raw ? JSON.parse(raw) : [];
-    if (Array.isArray(parsed) && parsed.length) return parsed;
-  } catch {
-    // Ignore malformed local data and start fresh.
-  }
-  return [];
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshStatus();
+  });
 }
 
 function saveSessions() {
-  localStorage.setItem(storageKey, JSON.stringify(sessions.slice(0, 30)));
+  persistSessions(sessions).catch(() => {});
 }
 
 function createSession() {
@@ -179,6 +203,7 @@ function createSession() {
     title: emptySessionTitle,
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    model: elements.modelSelect.value || readStoredModel(),
     messages: []
   };
   sessions.unshift(session);
@@ -243,6 +268,7 @@ function renderThreads() {
       attachments = [];
       shouldAutoScrollMessages = true;
       setSidebarOpen(false);
+      if (session.model) elements.modelSelect.value = session.model;
       render();
     });
 
@@ -357,17 +383,22 @@ function renderAttachments() {
 }
 
 async function addFiles(files) {
-  const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+  const imageFiles = filterImageFiles(files, attachments.length);
   if (!imageFiles.length) return;
   const nextAttachments = await Promise.all(
     imageFiles.map(async (file) => {
-      const preview = await fileToDataUrl(file);
-      return {
-        name: file.name,
-        type: file.type,
-        preview,
-        base64: preview.split(",")[1] || ""
-      };
+      try {
+        return await prepareImageFile(file, fileToDataUrl);
+      } catch {
+        const preview = await fileToDataUrl(file);
+        return {
+          id: crypto.randomUUID(),
+          name: file.name,
+          type: file.type,
+          preview,
+          base64: preview.split(",")[1] || ""
+        };
+      }
     })
   );
   attachments = attachments.concat(nextAttachments);
@@ -384,14 +415,22 @@ function fileToDataUrl(file) {
   });
 }
 
+function abortActiveChat() {
+  activeChatAbort?.abort();
+}
+
 async function sendMessage() {
-  if (isSending) return;
+  if (isSending) {
+    abortActiveChat();
+    return;
+  }
 
   const prompt = elements.promptInput.value.trim();
   if (!prompt && !attachments.length) return;
 
   const session = getActiveSession();
   const imagePayload = attachments.map((attachment) => ({
+    id: attachment.id,
     name: attachment.name,
     type: attachment.type,
     preview: attachment.preview,
@@ -413,6 +452,8 @@ async function sendMessage() {
 
   session.messages.push(userMessage, assistantMessage);
   session.updatedAt = Date.now();
+  session.model = elements.modelSelect.value || session.model;
+  writeStoredModel(session.model);
   if (session.title === emptySessionTitle) {
     session.title = makeTitle(userMessage.content);
   }
@@ -425,16 +466,29 @@ async function sendMessage() {
   render();
   setSending(true);
 
+  const controller = new AbortController();
+  activeChatAbort = controller;
+
   try {
-    await streamChat(session, assistantMessage);
+    await streamChat(session, assistantMessage, controller.signal);
     if (!assistantMessage.content.trim()) {
       assistantMessage.content = "模型没有返回内容，请稍后重试。";
     }
     assistantMessage.pending = false;
   } catch (error) {
     assistantMessage.pending = false;
-    assistantMessage.content = `请求失败：${error.message || "未知错误"}`;
+    if (error.name === "AbortError") {
+      if (!assistantMessage.content.trim()) assistantMessage.content = "已停止生成";
+    } else {
+      assistantMessage.content = `请求失败：${error.message || "未知错误"}`;
+    }
   } finally {
+    if (activeChatAbort === controller) activeChatAbort = null;
+    if (streamRenderFrame) {
+      cancelAnimationFrame(streamRenderFrame);
+      streamRenderFrame = 0;
+    }
+    pendingStreamMessage = null;
     session.updatedAt = Date.now();
     saveSessions();
     setSending(false);
@@ -442,23 +496,13 @@ async function sendMessage() {
   }
 }
 
-async function streamChat(session, assistantMessage) {
-  const messages = session.messages
-    .filter((message) => message.role === "user" || message.role === "assistant")
-    .map((message) => {
-      const mapped = {
-        role: message.role,
-        content: message.content || ""
-      };
-      if (message.role === "user" && message.images?.length) {
-        mapped.images = message.images.map((image) => image.base64);
-      }
-      return mapped;
-    });
+async function streamChat(session, assistantMessage, signal) {
+  const messages = toOllamaMessages(session.messages);
 
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal,
     body: JSON.stringify({
       model: elements.modelSelect.value || "gemma4:12b",
       messages
@@ -475,6 +519,10 @@ async function streamChat(session, assistantMessage) {
   let buffer = "";
 
   while (true) {
+    if (signal?.aborted) {
+      await reader.cancel();
+      throw new DOMException("Aborted", "AbortError");
+    }
     const { value, done } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
@@ -524,20 +572,26 @@ function scrollConversationToBottom() {
 }
 
 function updateLastAssistantNode(messageOrContent) {
-  const shouldStickToBottom = shouldAutoScrollMessages || isNearConversationBottom();
-  const content =
-    typeof messageOrContent === "string"
-      ? messageOrContent
-      : messageOrContent?.pending && !messageOrContent?.content
-        ? "正在思考..."
-        : messageOrContent?.content || "";
-  const nodes = elements.messages.querySelectorAll(".message.assistant .message-text");
-  const last = nodes[nodes.length - 1];
-  if (last) {
-    last.classList.toggle("pending", Boolean(messageOrContent?.pending));
-    last.innerHTML = renderMarkdown(content);
-    if (shouldStickToBottom) requestAnimationFrame(() => scrollConversationToBottom());
-  }
+  pendingStreamMessage = messageOrContent;
+  if (streamRenderFrame) return;
+  streamRenderFrame = requestAnimationFrame(() => {
+    streamRenderFrame = 0;
+    const current = pendingStreamMessage;
+    const shouldStickToBottom = shouldAutoScrollMessages || isNearConversationBottom();
+    const content =
+      typeof current === "string"
+        ? current
+        : current?.pending && !current?.content
+          ? "正在思考..."
+          : current?.content || "";
+    const nodes = elements.messages.querySelectorAll(".message.assistant .message-text");
+    const last = nodes[nodes.length - 1];
+    if (last) {
+      last.classList.toggle("pending", Boolean(current?.pending));
+      last.innerHTML = renderStreamingMarkdown(content);
+      if (shouldStickToBottom) requestAnimationFrame(() => scrollConversationToBottom());
+    }
+  });
 }
 
 async function refreshStatus() {
@@ -561,15 +615,21 @@ async function refreshStatus() {
 }
 
 function syncModelOptions(status) {
-  const selected = elements.modelSelect.value || "gemma4:12b";
+  const session = getActiveSession();
+  const selected =
+    session.model || elements.modelSelect.value || readStoredModel() || "gemma4:12b";
   const models = status.models?.length ? status.models : [{ name: "gemma4:12b" }];
-  elements.modelSelect.innerHTML = "";
-  models.forEach((model) => {
-    const option = document.createElement("option");
-    option.value = model.name;
-    option.textContent = model.name;
-    elements.modelSelect.appendChild(option);
-  });
+  const nextNames = models.map((model) => model.name);
+  const currentNames = Array.from(elements.modelSelect.options).map((option) => option.value);
+  if (nextNames.join("\0") !== currentNames.join("\0")) {
+    elements.modelSelect.innerHTML = "";
+    models.forEach((model) => {
+      const option = document.createElement("option");
+      option.value = model.name;
+      option.textContent = model.name;
+      elements.modelSelect.appendChild(option);
+    });
+  }
   elements.modelSelect.value = models.some((model) => model.name === selected)
     ? selected
     : models[0]?.name || "gemma4:12b";
@@ -661,8 +721,17 @@ function setSending(value) {
 
 function updateControls() {
   const hasContent = elements.promptInput.value.trim() || attachments.length;
-  elements.sendButton.disabled = isSending || !hasContent;
+  elements.sendButton.disabled = isSending ? false : !hasContent;
+  elements.sendButton.classList.toggle("is-stop", isSending);
   elements.sendButton.setAttribute("aria-busy", String(isSending));
+  elements.sendButton.setAttribute("aria-label", isSending ? "停止生成" : "发送消息");
+  elements.sendButton.title = isSending ? "停止生成" : "发送消息";
+  const icon = elements.sendButton.querySelector("[data-icon]");
+  if (icon) {
+    const name = isSending ? "square" : "send";
+    icon.dataset.icon = name;
+    if (icons[name]) icon.innerHTML = createIconSvg(icons[name]);
+  }
 }
 
 function autoSizeComposer() {

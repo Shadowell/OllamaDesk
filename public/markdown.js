@@ -1,5 +1,34 @@
 const blockTags = new Set(["p", "ol", "ul", "pre", "h1", "h2", "h3", "h4", "h5", "h6"]);
 
+export function hasUnclosedFence(markdown = "") {
+  let open = false;
+  for (const line of String(markdown).replace(/\r\n/g, "\n").split("\n")) {
+    if (/^```([a-zA-Z0-9_-]*)\s*$/.test(line)) open = !open;
+  }
+  return open;
+}
+
+export function renderStreamingMarkdown(markdown = "") {
+  const text = String(markdown);
+  if (!hasUnclosedFence(text)) return renderMarkdown(text);
+
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  let lastOpen = -1;
+  let open = false;
+  for (let index = 0; index < lines.length; index += 1) {
+    if (/^```([a-zA-Z0-9_-]*)\s*$/.test(lines[index])) {
+      open = !open;
+      if (open) lastOpen = index;
+    }
+  }
+  if (lastOpen < 0) return renderMarkdown(text);
+
+  const closed = lines.slice(0, lastOpen).join("\n");
+  const openBody = lines.slice(lastOpen + 1).join("\n");
+  const prefix = closed.trim() ? renderMarkdown(closed) : "";
+  return `${prefix}<pre><code>${escapeHtml(openBody)}</code></pre>`;
+}
+
 export function renderMarkdown(markdown = "") {
   const lines = String(markdown).replace(/\r\n/g, "\n").split("\n");
   const blocks = [];

@@ -956,8 +956,16 @@ button { cursor: pointer; }
   box-shadow: none;
 }
 
+.send-button.is-stop,
 .send-button[aria-busy="true"] {
-  opacity: 0.7;
+  background: #2c2c30;
+  box-shadow: none;
+  opacity: 1;
+}
+
+.send-button.is-stop:hover:not(:disabled) {
+  background: #1c1c1e;
+  transform: none;
 }
 
 .model-select {

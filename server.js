@@ -1,6 +1,8 @@
 import { createServer } from "node:http";
 import { createReadStream, existsSync } from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -55,6 +57,13 @@ function readJsonBody(req) {
 }
 
 async function proxyOllamaChat(req, res) {
+  const abortController = new AbortController();
+  const abortFromClient = () => {
+    if (!res.writableEnded) abortController.abort();
+  };
+  req.on("close", abortFromClient);
+  res.on("close", abortFromClient);
+
   try {
     const body = await readJsonBody(req);
     const model = body.model || "gemma4:12b";
@@ -68,6 +77,7 @@ async function proxyOllamaChat(req, res) {
     const ollamaResponse = await fetch(`${ollamaBaseUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: abortController.signal,
       body: JSON.stringify({
         model,
         messages,
@@ -93,19 +103,21 @@ async function proxyOllamaChat(req, res) {
       "X-Accel-Buffering": "no"
     });
 
-    const reader = ollamaResponse.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(Buffer.from(value));
-    }
-    res.end();
+    await pipeline(Readable.fromWeb(ollamaResponse.body), res);
   } catch (error) {
+    if (abortController.signal.aborted) {
+      if (!res.headersSent) res.writeHead(499);
+      if (!res.writableEnded) res.end();
+      return;
+    }
     if (!res.headersSent) {
       sendJson(res, 500, { error: error.message || "Chat request failed." });
-    } else {
+    } else if (!res.writableEnded) {
       res.end();
     }
+  } finally {
+    req.off("close", abortFromClient);
+    res.off("close", abortFromClient);
   }
 }
 

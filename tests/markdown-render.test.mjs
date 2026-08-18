@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { renderMarkdown } from "../public/markdown.js";
+import { hasUnclosedFence, renderMarkdown, renderStreamingMarkdown } from "../public/markdown.js";
 
 test("renders common assistant markdown safely", () => {
   const html = renderMarkdown(
@@ -37,4 +37,12 @@ test("renders markdown headings without leaking hash markers", () => {
   assert.match(html, /<h3>1\. 对”原生链上（On-chain）”体验的追求<\/h3>/);
   assert.match(html, /<p>正文内容<\/p>/);
   assert.doesNotMatch(html, /###/);
+});
+
+test("streaming markdown keeps an open fence as escaped text", () => {
+  assert.equal(hasUnclosedFence("```js\nconst x = 1"), true);
+  const html = renderStreamingMarkdown("前言\n\n```js\nconst x = 1;");
+  assert.match(html, /<p>前言<\/p>/);
+  assert.match(html, /<pre><code>const x = 1;<\/code><\/pre>/);
+  assert.doesNotMatch(html, /class="language-js"/);
 });
