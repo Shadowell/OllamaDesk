@@ -98,7 +98,7 @@
           <header class="settings-header">
             <div>
               <h2>设置</h2>
-              <p>当前运行能力和本地会话状态</p>
+              <p>运行能力与生成选项</p>
             </div>
             <button id="settingsCloseButton" class="settings-close" type="button" aria-label="关闭设置">
               <span class="icon" data-icon="x" aria-hidden="true"></span>
@@ -116,6 +116,15 @@
             <div>
               <dt>Markdown</dt>
               <dd id="settingsMarkdownStatus">已启用</dd>
+            </div>
+            <div>
+              <dt>思考过程</dt>
+              <dd>
+                <label class="settings-toggle">
+                  <input id="settingsThinkToggle" type="checkbox" checked />
+                  <span id="settingsThinkStatus">已启用</span>
+                </label>
+              </dd>
             </div>
             <div>
               <dt>会话存储</dt>

@@ -1,5 +1,6 @@
 export const SESSION_KEY = "ollama-desk:sessions:v1";
 export const MODEL_KEY = "ollama-desk:model";
+export const THINK_KEY = "ollama-desk:think";
 const IMAGE_DB = "ollama-desk";
 const IMAGE_STORE = "images";
 
@@ -11,6 +12,7 @@ export function buildPersistedState(sessions = []) {
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     model: session.model || "",
+    think: session.think !== false,
     messages: (session.messages || []).map((message) => {
       const imageIds = [];
       for (const image of message.images || []) {
@@ -29,6 +31,7 @@ export function buildPersistedState(sessions = []) {
       return {
         role: message.role,
         content: message.content || "",
+        thinking: message.thinking || undefined,
         createdAt: message.createdAt,
         imageIds: imageIds.length ? imageIds : undefined
       };
@@ -45,6 +48,7 @@ export function restoreSessionsFromStored(stored = [], images = []) {
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     model: session.model || "",
+    think: session.think !== false,
     messages: (session.messages || []).map((message) => {
       const fromIds = (message.imageIds || [])
         .map((id) => withPreview(imageMap.get(id)))
@@ -61,6 +65,7 @@ export function restoreSessionsFromStored(stored = [], images = []) {
       return {
         role: message.role,
         content: message.content || "",
+        thinking: message.thinking || undefined,
         createdAt: message.createdAt,
         images: list.length ? list : undefined
       };
@@ -85,6 +90,24 @@ export function readStoredModel(storage = globalThis.localStorage) {
 export function writeStoredModel(model, storage = globalThis.localStorage) {
   try {
     if (model) storage?.setItem?.(MODEL_KEY, model);
+  } catch {
+    // Ignore quota or private-mode failures.
+  }
+}
+
+export function readStoredThink(storage = globalThis.localStorage) {
+  try {
+    const raw = storage?.getItem?.(THINK_KEY);
+    if (raw === "0" || raw === "false") return false;
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+export function writeStoredThink(enabled, storage = globalThis.localStorage) {
+  try {
+    storage?.setItem?.(THINK_KEY, enabled ? "1" : "0");
   } catch {
     // Ignore quota or private-mode failures.
   }

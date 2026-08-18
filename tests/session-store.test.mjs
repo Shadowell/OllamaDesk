@@ -40,6 +40,19 @@ test("persists image bytes separately from session JSON", () => {
   assert.equal(JSON.stringify(stored).includes("abc"), false);
 });
 
+test("persists thinking text with the assistant message", () => {
+  const { stored } = buildPersistedState([
+    {
+      id: "s1",
+      title: "算",
+      think: true,
+      messages: [{ role: "assistant", content: "2", thinking: "先加法" }]
+    }
+  ]);
+  assert.equal(stored[0].think, true);
+  assert.equal(stored[0].messages[0].thinking, "先加法");
+});
+
 test("restores previews from image records and legacy inline payloads", () => {
   const restored = restoreSessionsFromStored(
     [

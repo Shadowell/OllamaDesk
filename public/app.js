@@ -1,6 +1,7 @@
 import { filterImageFiles, prepareImageFile } from "./attachments.js";
 import { toOllamaMessages } from "./chat-context.js";
 import { renderMarkdown, renderStreamingMarkdown } from "./markdown.js";
+import { applyOllamaEvent } from "./ollama-stream.js";
 import {
   applySessionTitle,
   lastAssistantIndex,
@@ -11,7 +12,9 @@ import {
   loadSessions as readStoredSessions,
   persistSessions,
   readStoredModel,
-  writeStoredModel
+  readStoredThink,
+  writeStoredModel,
+  writeStoredThink
 } from "./session-store.js";
 
 const emptySessionTitle = "新对话";
@@ -93,6 +96,8 @@ const elements = {
   settingsOllamaStatus: document.querySelector("#settingsOllamaStatus"),
   settingsModelStatus: document.querySelector("#settingsModelStatus"),
   settingsMarkdownStatus: document.querySelector("#settingsMarkdownStatus"),
+  settingsThinkToggle: document.querySelector("#settingsThinkToggle"),
+  settingsThinkStatus: document.querySelector("#settingsThinkStatus"),
   settingsStorageStatus: document.querySelector("#settingsStorageStatus")
 };
 
@@ -165,6 +170,14 @@ function bindEvents() {
     saveSessions();
     renderCapabilityStatus(latestStatus);
   });
+  elements.settingsThinkToggle?.addEventListener("change", () => {
+    const enabled = Boolean(elements.settingsThinkToggle.checked);
+    const session = getActiveSession();
+    session.think = enabled;
+    writeStoredThink(enabled);
+    saveSessions();
+    renderCapabilityStatus(latestStatus);
+  });
   elements.attachButton.addEventListener("click", () => elements.fileInput.click());
   elements.fileInput.addEventListener("change", (event) => {
     addFiles(Array.from(event.target.files || []));
@@ -225,6 +238,7 @@ function createSession() {
     createdAt: Date.now(),
     updatedAt: Date.now(),
     model: elements.modelSelect.value || readStoredModel(),
+    think: readStoredThink(),
     messages: []
   };
   sessions.unshift(session);
@@ -292,6 +306,7 @@ function renderThreads() {
       setSidebarOpen(false);
       if (session.model) elements.modelSelect.value = session.model;
       render();
+      renderCapabilityStatus(latestStatus);
     });
     button.addEventListener("dblclick", (event) => {
       event.preventDefault();
@@ -440,10 +455,15 @@ function createMessageNode(message, index, retryIndex) {
   role.textContent = roleLabel;
 
   const text = document.createElement("div");
-  text.className = `message-text ${message.pending ? "pending" : ""}`;
-  text.innerHTML = renderMarkdown(message.pending && !message.content ? "正在思考..." : message.content || "");
+  const showPending = message.pending && !message.content && !message.thinking;
+  text.className = `message-text ${showPending ? "pending" : ""}`;
+  text.innerHTML = renderMarkdown(showPending ? "正在思考..." : message.content || "");
 
-  bubble.append(role, text);
+  bubble.append(role);
+  if (message.thinking) {
+    bubble.appendChild(createThinkingBlock(message, { open: showThinkingOpen(message) }));
+  }
+  bubble.append(text);
   if (message.images?.length) {
     bubble.appendChild(createImageGrid(message.images));
   }
@@ -515,6 +535,26 @@ function retryLastTurn() {
   if (!target) return;
   session.messages = target.messages;
   runAssistantTurn(session);
+}
+
+function createThinkingBlock(message, options = {}) {
+  const details = document.createElement("details");
+  details.className = "message-thinking";
+  details.open = Boolean(options.open);
+  details.addEventListener("toggle", () => {
+    details.dataset.userToggle = "1";
+  });
+  const summary = document.createElement("summary");
+  summary.textContent = message.pending && !message.content ? "正在思考" : "思考过程";
+  const body = document.createElement("div");
+  body.className = "thinking-text";
+  body.textContent = message.thinking || "";
+  details.append(summary, body);
+  return details;
+}
+
+function showThinkingOpen(message) {
+  return Boolean(message.pending && message.thinking && !message.content);
 }
 
 function createImageGrid(images, className = "message-images") {
@@ -687,7 +727,8 @@ async function streamChat(session, assistantMessage, signal) {
     signal,
     body: JSON.stringify({
       model: elements.modelSelect.value || "gemma4:12b",
-      messages
+      messages,
+      think: isThinkEnabled()
     })
   });
 
@@ -724,22 +765,18 @@ function handleOllamaLine(line, assistantMessage) {
   if (!line.trim()) return;
   try {
     const event = JSON.parse(line);
-    if (event.error) {
-      assistantMessage.pending = false;
-      assistantMessage.content += `\n${event.error}`;
-    }
-    const content = event.message?.content || event.response || "";
-    if (content) {
-      if (assistantMessage.pending) {
-        assistantMessage.content = "";
-        assistantMessage.pending = false;
-      }
-      assistantMessage.content += content;
+    if (applyOllamaEvent(event, assistantMessage)) {
       updateLastAssistantNode(assistantMessage);
     }
   } catch {
     // Ignore incomplete transport fragments.
   }
+}
+
+function isThinkEnabled() {
+  const session = getActiveSession();
+  if (typeof session.think === "boolean") return session.think;
+  return readStoredThink();
 }
 
 function isNearConversationBottom(threshold = 96) {
@@ -760,20 +797,39 @@ function updateLastAssistantNode(messageOrContent) {
     streamRenderFrame = 0;
     const current = pendingStreamMessage;
     const shouldStickToBottom = shouldAutoScrollMessages || isNearConversationBottom();
+    const article = [...elements.messages.querySelectorAll(".message.assistant")].at(-1);
+    if (!article) return;
     const content =
       typeof current === "string"
         ? current
-        : current?.pending && !current?.content
+        : current?.pending && !current?.content && !current?.thinking
           ? "正在思考..."
           : current?.content || "";
-    const nodes = elements.messages.querySelectorAll(".message.assistant .message-text");
-    const last = nodes[nodes.length - 1];
+    const last = article.querySelector(".message-text");
     if (last) {
-      last.classList.toggle("pending", Boolean(current?.pending));
+      last.classList.toggle("pending", Boolean(current?.pending && !current?.content && !current?.thinking));
       last.innerHTML = renderStreamingMarkdown(content);
-      if (shouldStickToBottom) requestAnimationFrame(() => scrollConversationToBottom());
     }
+    syncThinkingNode(article, current);
+    if (shouldStickToBottom) requestAnimationFrame(() => scrollConversationToBottom());
   });
+}
+
+function syncThinkingNode(article, message) {
+  if (typeof message === "string" || !message?.thinking) return;
+  let details = article.querySelector(".message-thinking");
+  const wasOpen = details?.open;
+  if (!details) {
+    details = createThinkingBlock(message, { open: showThinkingOpen(message) });
+    const text = article.querySelector(".message-text");
+    text?.before(details);
+  } else {
+    const summary = details.querySelector("summary");
+    const body = details.querySelector(".thinking-text");
+    if (summary) summary.textContent = message.pending && !message.content ? "正在思考" : "思考过程";
+    if (body) body.textContent = message.thinking;
+    details.open = details.dataset.userToggle ? wasOpen : showThinkingOpen(message);
+  }
 }
 
 async function refreshStatus() {
@@ -837,6 +893,9 @@ function renderCapabilityStatus(status) {
     : safeStatus.error || "无法连接";
   elements.settingsModelStatus.textContent = selectedName;
   elements.settingsMarkdownStatus.textContent = markdownReady ? "已启用" : "未启用";
+  const thinkOn = isThinkEnabled();
+  if (elements.settingsThinkToggle) elements.settingsThinkToggle.checked = thinkOn;
+  if (elements.settingsThinkStatus) elements.settingsThinkStatus.textContent = thinkOn ? "已启用" : "已关闭";
   elements.settingsStorageStatus.textContent = `浏览器本地 · ${sessions.length} 个会话`;
 }
 

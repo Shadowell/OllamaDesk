@@ -22,6 +22,10 @@ export function toOllamaMessages(messages = [], options = {}) {
       content: message.content || ""
     };
 
+    if (message.role === "assistant" && message.thinking) {
+      mapped.thinking = message.thinking;
+    }
+
     if (message.role === "user" && message.images?.length && remainingImageTurns > 0) {
       mapped.images = message.images
         .map((image) => (typeof image === "string" ? image : image.base64))

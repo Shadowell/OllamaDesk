@@ -27,6 +27,14 @@ test("drops pending empty assistant and older images beyond the last two turns",
   assert.equal(mapped.find((message) => message.content === "second").images, undefined);
 });
 
+test("forwards assistant thinking into the next Ollama request", () => {
+  const mapped = toOllamaMessages([
+    { role: "user", content: "1+1" },
+    { role: "assistant", content: "2", thinking: "先加法" }
+  ]);
+  assert.equal(mapped[1].thinking, "先加法");
+});
+
 test("keeps only the newest context window", () => {
   const messages = Array.from({ length: 40 }, (_, index) => ({
     role: index % 2 === 0 ? "user" : "assistant",

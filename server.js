@@ -82,7 +82,7 @@ async function proxyOllamaChat(req, res) {
         model,
         messages,
         stream: true,
-        think: false,
+        think: body.think === true,
         options: {
           temperature: 0.7
         }
