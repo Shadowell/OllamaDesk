@@ -1,0 +1,170 @@
+{
+  "endpoint": "https://aqqpeiav503ed63j-8000.fj01-webservice.gpuhome.cc:46551/v1",
+  "model": "qwen3.8-27b",
+  "prompt_chars": 47,
+  "max_tokens": 256,
+  "thinking": false,
+  "hardware": "RTX 4090 24GB",
+  "engine": "vLLM 0.27.1 W4A16",
+  "max_model_len": 8192,
+  "max_num_seqs": 4,
+  "summary": [
+    {
+      "concurrency": 1,
+      "wall_s": 3.582,
+      "agg_tps": 44.95,
+      "avg_ttft_ms": 461.1,
+      "p95_ttft_ms": 461.1,
+      "avg_gen_tps": 51.67,
+      "min_gen_tps": 51.67,
+      "avg_e2e_tps": 45.01,
+      "avg_total_s": 3.577,
+      "avg_tokens": 161
+    },
+    {
+      "concurrency": 2,
+      "wall_s": 3.38,
+      "agg_tps": 87.28,
+      "avg_ttft_ms": 432.6,
+      "p95_ttft_ms": 432.0,
+      "avg_gen_tps": 50.59,
+      "min_gen_tps": 50.58,
+      "avg_e2e_tps": 44.06,
+      "avg_total_s": 3.348,
+      "avg_tokens": 147.5
+    },
+    {
+      "concurrency": 4,
+      "wall_s": 6.443,
+      "agg_tps": 93.12,
+      "avg_ttft_ms": 1325.4,
+      "p95_ttft_ms": 571.5,
+      "avg_gen_tps": 49.8,
+      "min_gen_tps": 48.67,
+      "avg_e2e_tps": 36.82,
+      "avg_total_s": 4.34,
+      "avg_tokens": 150
+    }
+  ],
+  "detail": [
+    {
+      "concurrency": 1,
+      "wall_s": 3.582,
+      "agg_tps": 44.95,
+      "avg_ttft_ms": 461.1,
+      "p95_ttft_ms": 461.1,
+      "avg_gen_tps": 51.67,
+      "min_gen_tps": 51.67,
+      "avg_e2e_tps": 45.01,
+      "avg_total_s": 3.577,
+      "avg_tokens": 161,
+      "results": [
+        {
+          "id": 0,
+          "ttft_ms": 461.1,
+          "total_s": 3.577,
+          "completion_tokens": 161,
+          "text_chars": 284,
+          "gen_tps": 51.67,
+          "e2e_tps": 45.01,
+          "tpot_ms": 19.48,
+          "finish": "stop"
+        }
+      ]
+    },
+    {
+      "concurrency": 2,
+      "wall_s": 3.38,
+      "agg_tps": 87.28,
+      "avg_ttft_ms": 432.6,
+      "p95_ttft_ms": 432.0,
+      "avg_gen_tps": 50.59,
+      "min_gen_tps": 50.58,
+      "avg_e2e_tps": 44.06,
+      "avg_total_s": 3.348,
+      "avg_tokens": 147.5,
+      "results": [
+        {
+          "id": 0,
+          "ttft_ms": 432.0,
+          "total_s": 3.317,
+          "completion_tokens": 146,
+          "text_chars": 263,
+          "gen_tps": 50.61,
+          "e2e_tps": 44.02,
+          "tpot_ms": 19.9,
+          "finish": "stop"
+        },
+        {
+          "id": 1,
+          "ttft_ms": 433.3,
+          "total_s": 3.379,
+          "completion_tokens": 149,
+          "text_chars": 247,
+          "gen_tps": 50.58,
+          "e2e_tps": 44.1,
+          "tpot_ms": 19.9,
+          "finish": "stop"
+        }
+      ]
+    },
+    {
+      "concurrency": 4,
+      "wall_s": 6.443,
+      "agg_tps": 93.12,
+      "avg_ttft_ms": 1325.4,
+      "p95_ttft_ms": 571.5,
+      "avg_gen_tps": 49.8,
+      "min_gen_tps": 48.67,
+      "avg_e2e_tps": 36.82,
+      "avg_total_s": 4.34,
+      "avg_tokens": 150,
+      "results": [
+        {
+          "id": 0,
+          "ttft_ms": 571.3,
+          "total_s": 3.755,
+          "completion_tokens": 156,
+          "text_chars": 270,
+          "gen_tps": 49.0,
+          "e2e_tps": 41.55,
+          "tpot_ms": 20.54,
+          "finish": "stop"
+        },
+        {
+          "id": 1,
+          "ttft_ms": 571.5,
+          "total_s": 3.674,
+          "completion_tokens": 151,
+          "text_chars": 266,
+          "gen_tps": 48.67,
+          "e2e_tps": 41.1,
+          "tpot_ms": 20.68,
+          "finish": "stop"
+        },
+        {
+          "id": 2,
+          "ttft_ms": 570.1,
+          "total_s": 3.492,
+          "completion_tokens": 146,
+          "text_chars": 240,
+          "gen_tps": 49.98,
+          "e2e_tps": 41.82,
+          "tpot_ms": 20.15,
+          "finish": "stop"
+        },
+        {
+          "id": 3,
+          "ttft_ms": 3588.8,
+          "total_s": 6.441,
+          "completion_tokens": 147,
+          "text_chars": 262,
+          "gen_tps": 51.54,
+          "e2e_tps": 22.82,
+          "tpot_ms": 19.54,
+          "finish": "stop"
+        }
+      ]
+    }
+  ]
+}
