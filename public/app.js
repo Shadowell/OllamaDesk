@@ -2,6 +2,12 @@ import { filterImageFiles, prepareImageFile } from "./attachments.js";
 import { toOllamaMessages } from "./chat-context.js";
 import { renderMarkdown, renderStreamingMarkdown } from "./markdown.js";
 import {
+  applySessionTitle,
+  lastAssistantIndex,
+  takeEditTarget,
+  takeRetryTarget
+} from "./session-actions.js";
+import {
   loadSessions as readStoredSessions,
   persistSessions,
   readStoredModel,
@@ -44,6 +50,18 @@ const icons = {
   `,
   square: `
     <rect x="7" y="7" width="10" height="10"></rect>
+  `,
+  copy: `
+    <rect x="8" y="8" width="13" height="13" rx="2"></rect>
+    <path d="M4 16V4a2 2 0 0 1 2-2h10"></path>
+  `,
+  pencil: `
+    <path d="M12 20h9"></path>
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+  `,
+  rotate: `
+    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+    <path d="M3 3v5h5"></path>
   `
 };
 
@@ -155,6 +173,9 @@ function bindEvents() {
   elements.dropZone.addEventListener("scroll", () => {
     shouldAutoScrollMessages = isNearConversationBottom();
   });
+  elements.activeTitle.addEventListener("dblclick", () => {
+    beginActiveTitleRename();
+  });
 
   elements.composer.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -263,6 +284,7 @@ function renderThreads() {
       <div class="thread-meta">${session.messages.length} 条 · ${formatTime(session.updatedAt)}</div>
     `;
     button.querySelector(".thread-title").textContent = session.title;
+    button.title = "双击标题可重命名";
     button.addEventListener("click", () => {
       activeSessionId = session.id;
       attachments = [];
@@ -270,6 +292,11 @@ function renderThreads() {
       setSidebarOpen(false);
       if (session.model) elements.modelSelect.value = session.model;
       render();
+    });
+    button.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      beginThreadRename(session, row);
     });
 
     const deleteButton = document.createElement("button");
@@ -289,6 +316,90 @@ function renderThreads() {
   });
 }
 
+function beginThreadRename(session, row) {
+  if (row.querySelector(".thread-rename")) return;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "thread-rename";
+  input.value = session.title === emptySessionTitle ? "" : session.title;
+  input.setAttribute("aria-label", "重命名对话");
+  input.addEventListener("click", (event) => event.stopPropagation());
+  input.addEventListener("dblclick", (event) => event.stopPropagation());
+
+  let settled = false;
+  const commit = (shouldSave) => {
+    if (settled) return;
+    settled = true;
+    if (shouldSave) {
+      session.title = applySessionTitle(input.value, emptySessionTitle);
+      session.updatedAt = Date.now();
+      saveSessions();
+    }
+    render();
+  };
+
+  input.addEventListener("keydown", (event) => {
+    event.stopPropagation();
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commit(true);
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      commit(false);
+    }
+  });
+  input.addEventListener("blur", () => commit(true));
+
+  row.classList.add("renaming");
+  row.querySelector(".thread-item")?.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+function beginActiveTitleRename() {
+  if (elements.activeTitle.dataset.editing === "true") return;
+  const session = getActiveSession();
+  const label = elements.activeTitle;
+  label.dataset.editing = "true";
+  label.contentEditable = "true";
+  label.spellcheck = false;
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(label);
+  selection.removeAllRanges();
+  selection.addRange(range);
+
+  let settled = false;
+  const finish = (shouldCommit) => {
+    if (settled) return;
+    settled = true;
+    label.removeEventListener("keydown", onKeyDown);
+    label.contentEditable = "false";
+    delete label.dataset.editing;
+    if (shouldCommit) {
+      session.title = applySessionTitle(label.textContent, emptySessionTitle);
+      session.updatedAt = Date.now();
+      saveSessions();
+    }
+    render();
+  };
+
+  const onKeyDown = (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      finish(true);
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      finish(false);
+    }
+  };
+
+  label.addEventListener("keydown", onKeyDown);
+  label.addEventListener("blur", () => finish(true), { once: true });
+}
+
 function renderMessages() {
   const session = getActiveSession();
   const previousScrollTop = elements.dropZone.scrollTop;
@@ -297,8 +408,9 @@ function renderMessages() {
   elements.messages.innerHTML = "";
   elements.emptyState.classList.toggle("hidden", session.messages.length > 0);
 
-  session.messages.forEach((message) => {
-    elements.messages.appendChild(createMessageNode(message));
+  const retryIndex = lastAssistantIndex(session.messages);
+  session.messages.forEach((message, index) => {
+    elements.messages.appendChild(createMessageNode(message, index, retryIndex));
   });
 
   requestAnimationFrame(() => {
@@ -310,7 +422,7 @@ function renderMessages() {
   });
 }
 
-function createMessageNode(message) {
+function createMessageNode(message, index, retryIndex) {
   const node = document.createElement("article");
   const roleLabel = message.role === "user" ? "我" : "Agent";
   node.className = `message ${message.role} message-${message.role}`;
@@ -335,9 +447,74 @@ function createMessageNode(message) {
   if (message.images?.length) {
     bubble.appendChild(createImageGrid(message.images));
   }
+  if (!message.pending) {
+    bubble.appendChild(createMessageActions(message, index, retryIndex));
+  }
 
   node.append(avatar, bubble);
   return node;
+}
+
+function createMessageActions(message, index, retryIndex) {
+  const actions = document.createElement("div");
+  actions.className = "message-actions";
+  actions.appendChild(createActionButton("copy", "复制", () => copyMessage(message)));
+
+  if (message.role === "user" && !isSending) {
+    actions.appendChild(createActionButton("pencil", "编辑并重发", () => editUserMessage(index)));
+  }
+  if (message.role === "assistant" && index === retryIndex && !isSending) {
+    actions.appendChild(createActionButton("rotate", "重试这一轮", () => retryLastTurn()));
+  }
+  return actions;
+}
+
+function createActionButton(icon, label, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "message-action";
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  button.appendChild(createIcon(icon));
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function copyMessage(message) {
+  const text = String(message.content || "").trim();
+  if (!text || !navigator.clipboard?.writeText) return;
+  navigator.clipboard.writeText(text).catch(() => {});
+}
+
+function editUserMessage(index) {
+  if (isSending) return;
+  const session = getActiveSession();
+  const target = takeEditTarget(session.messages, index);
+  if (!target) return;
+
+  session.messages = target.messages;
+  if (
+    !session.messages.length &&
+    session.title === makeTitle(target.userMessage.content)
+  ) {
+    session.title = emptySessionTitle;
+  }
+  elements.promptInput.value = target.userMessage.content || "";
+  attachments = (target.userMessage.images || []).map((image) => ({ ...image }));
+  shouldAutoScrollMessages = true;
+  saveSessions();
+  render();
+  autoSizeComposer();
+  elements.promptInput.focus();
+}
+
+function retryLastTurn() {
+  if (isSending) return;
+  const session = getActiveSession();
+  const target = takeRetryTarget(session.messages);
+  if (!target) return;
+  session.messages = target.messages;
+  runAssistantTurn(session);
 }
 
 function createImageGrid(images, className = "message-images") {
@@ -443,6 +620,18 @@ async function sendMessage() {
     createdAt: Date.now()
   };
 
+  session.messages.push(userMessage);
+  if (session.title === emptySessionTitle) {
+    session.title = makeTitle(userMessage.content);
+  }
+
+  elements.promptInput.value = "";
+  attachments = [];
+  autoSizeComposer();
+  await runAssistantTurn(session);
+}
+
+async function runAssistantTurn(session) {
   const assistantMessage = {
     role: "assistant",
     content: "",
@@ -450,18 +639,11 @@ async function sendMessage() {
     createdAt: Date.now()
   };
 
-  session.messages.push(userMessage, assistantMessage);
+  session.messages.push(assistantMessage);
   session.updatedAt = Date.now();
   session.model = elements.modelSelect.value || session.model;
   writeStoredModel(session.model);
-  if (session.title === emptySessionTitle) {
-    session.title = makeTitle(userMessage.content);
-  }
-
-  elements.promptInput.value = "";
-  attachments = [];
   shouldAutoScrollMessages = true;
-  autoSizeComposer();
   saveSessions();
   render();
   setSending(true);

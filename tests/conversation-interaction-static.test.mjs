@@ -29,6 +29,20 @@ test("history items expose a separate delete action", () => {
   assert.match(css, /\.thread-delete\s*{/);
 });
 
+test("messages expose copy, edit, and retry actions", () => {
+  assert.match(appJs, /function retryLastTurn\(/);
+  assert.match(appJs, /function editUserMessage\(/);
+  assert.match(appJs, /function beginThreadRename\(/);
+  assert.match(appJs, /function beginActiveTitleRename\(/);
+  assert.match(appJs, /takeRetryTarget/);
+  assert.match(appJs, /takeEditTarget/);
+  assert.match(appJs, /applySessionTitle/);
+  assert.match(appJs, /编辑并重发/);
+  assert.match(appJs, /重试这一轮/);
+  assert.match(css, /\.message-actions\s*{/);
+  assert.match(css, /\.thread-rename\s*{/);
+});
+
 test("deleting the active history selects another conversation or creates one", () => {
   const deleteBody =
     appJs.match(/function deleteSession\(sessionId\)[\s\S]*?\n}\n\nfunction setSending/)?.[0] || "";

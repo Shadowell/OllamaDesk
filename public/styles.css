@@ -379,6 +379,24 @@ button { cursor: pointer; }
   color: rgba(0, 0, 0, 0.35);
 }
 
+.thread-rename {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(200, 101, 61, 0.28);
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1c1c1e;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.thread-rename:focus {
+  outline: none;
+}
+
 .thread-delete {
   display: grid;
   place-items: center;
@@ -459,6 +477,14 @@ button { cursor: pointer; }
   font-weight: 650;
   white-space: nowrap;
   text-overflow: ellipsis;
+  cursor: text;
+}
+
+.topbar h1[contenteditable="true"] {
+  padding: 0 6px;
+  border-radius: 6px;
+  background: rgba(200, 101, 61, 0.06);
+  outline: 1px solid rgba(200, 101, 61, 0.22);
 }
 
 .topbar-title {
@@ -684,6 +710,50 @@ button { cursor: pointer; }
 .message-text.pending {
   color: var(--text-muted);
   font-style: italic;
+}
+
+.message-actions {
+  display: flex;
+  gap: 2px;
+  margin-top: 10px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.message:hover .message-actions,
+.message:focus-within .message-actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .message-actions { opacity: 1; }
+}
+
+.message.user .message-actions {
+  justify-content: flex-end;
+}
+
+.message-action {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.message-action:hover,
+.message-action:focus-visible {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+  outline: none;
+}
+
+.message-action .icon {
+  width: 14px;
+  height: 14px;
 }
 
 .message-text > * { margin: 0 0 18px; }
