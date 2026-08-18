@@ -10,4 +10,7 @@ test("chat proxy aborts upstream Ollama when the browser disconnects", () => {
   assert.match(serverJs, /req\.on\("close"/);
   assert.match(serverJs, /pipeline\(Readable\.fromWeb\(ollamaResponse\.body\), res\)/);
   assert.match(serverJs, /think: body\.think === true/);
+  assert.match(serverJs, /url\.pathname === "\/api\/sessions"/);
+  assert.match(serverJs, /writeSessionStore/);
+  assert.match(serverJs, /readSessionStore/);
 });

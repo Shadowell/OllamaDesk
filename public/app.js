@@ -110,6 +110,7 @@ let attachments = [];
 let activeChatAbort = null;
 let pendingStreamMessage = null;
 let streamRenderFrame = 0;
+let storageNote = "本机文件";
 
 boot();
 
@@ -228,7 +229,16 @@ function bindEvents() {
 }
 
 function saveSessions() {
-  persistSessions(sessions).catch(() => {});
+  persistSessions(sessions).then(
+    () => {
+      storageNote = "本机文件";
+      renderCapabilityStatus(latestStatus);
+    },
+    () => {
+      storageNote = "本机保存失败";
+      renderCapabilityStatus(latestStatus);
+    }
+  );
 }
 
 function createSession() {
@@ -896,7 +906,9 @@ function renderCapabilityStatus(status) {
   const thinkOn = isThinkEnabled();
   if (elements.settingsThinkToggle) elements.settingsThinkToggle.checked = thinkOn;
   if (elements.settingsThinkStatus) elements.settingsThinkStatus.textContent = thinkOn ? "已启用" : "已关闭";
-  elements.settingsStorageStatus.textContent = `浏览器本地 · ${sessions.length} 个会话`;
+  if (elements.settingsStorageStatus) {
+    elements.settingsStorageStatus.textContent = `${storageNote} · ${sessions.length} 个会话`;
+  }
 }
 
 function getSelectedModel(status) {

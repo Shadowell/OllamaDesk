@@ -128,7 +128,15 @@
             </div>
             <div>
               <dt>会话存储</dt>
-              <dd id="settingsStorageStatus">浏览器本地</dd>
+              <dd>
+                <span id="settingsStorageStatus">本机文件</span>
+                <a
+                  id="settingsExportLink"
+                  class="settings-export"
+                  href="/api/sessions"
+                  download="ollama-desk-sessions.json"
+                >导出 JSON</a>
+              </dd>
             </div>
           </dl>
         </div>

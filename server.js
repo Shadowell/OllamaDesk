@@ -5,12 +5,16 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 
+import { readSessionStore, writeSessionStore } from "./session-disk.js";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, "public");
+const dataDir = process.env.OLLAMA_DESK_DATA || path.join(__dirname, "data");
 const host = process.env.HOST || "127.0.0.1";
 const port = Number(process.env.PORT || 3217);
 const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434";
 const maxBodyBytes = 2 * 1024 * 1024;
+const maxSessionBytes = 32 * 1024 * 1024;
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -31,13 +35,13 @@ function sendJson(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
-function readJsonBody(req) {
+function readJsonBody(req, limit = maxBodyBytes) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
     req.on("data", (chunk) => {
       size += chunk.length;
-      if (size > maxBodyBytes) {
+      if (size > limit) {
         reject(new Error("Request body is too large."));
         req.destroy();
         return;
@@ -140,6 +144,10 @@ async function getStatus(res) {
       ok: versionResponse.ok,
       ollamaBaseUrl,
       version: version?.version || null,
+      storage: {
+        kind: "disk",
+        path: dataDir
+      },
       markdown: {
         enabled: true
       },
@@ -154,8 +162,32 @@ async function getStatus(res) {
       markdown: {
         enabled: true
       },
+      storage: {
+        kind: "disk",
+        path: dataDir
+      },
       error: error.message || "Unable to reach Ollama."
     });
+  }
+}
+
+async function getSessions(res) {
+  try {
+    const store = await readSessionStore(dataDir);
+    sendJson(res, 200, store);
+  } catch (error) {
+    sendJson(res, 500, { error: error.message || "Unable to read sessions." });
+  }
+}
+
+async function putSessions(req, res) {
+  try {
+    const body = await readJsonBody(req, maxSessionBytes);
+    const result = await writeSessionStore(dataDir, body);
+    sendJson(res, 200, { ok: true, ...result });
+  } catch (error) {
+    const status = error.message === "Request body is too large." ? 413 : 500;
+    sendJson(res, status, { error: error.message || "Unable to save sessions." });
   }
 }
 
@@ -192,6 +224,16 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/sessions") {
+    await getSessions(res);
+    return;
+  }
+
+  if (req.method === "PUT" && url.pathname === "/api/sessions") {
+    await putSessions(req, res);
+    return;
+  }
+
   if (req.method === "GET") {
     await serveStatic(req, res);
     return;
@@ -203,4 +245,5 @@ const server = createServer(async (req, res) => {
 server.listen(port, host, () => {
   console.log(`OllamaDesk running at http://${host}:${port}`);
   console.log(`Proxying Ollama at ${ollamaBaseUrl}`);
+  console.log(`Sessions stored in ${dataDir}`);
 });

@@ -17,7 +17,7 @@ http://127.0.0.1:3217
 ## Features
 
 - Local Ollama status and model picker
-- Chat sessions saved in browser local storage
+- Chat sessions saved on disk under `data/sessions/`, with a browser cache
 - Role-aligned chat layout with Agent on the left and user messages on the right
 - Deletable local chat history from the sidebar
 - Streaming responses through a local Node proxy
@@ -27,7 +27,7 @@ http://127.0.0.1:3217
 ## Environment
 
 ```bash
-PORT=3217 OLLAMA_BASE_URL=http://127.0.0.1:11434 npm start
+PORT=3217 OLLAMA_BASE_URL=http://127.0.0.1:11434 OLLAMA_DESK_DATA=./data npm start
 ```
 
 ## Checks

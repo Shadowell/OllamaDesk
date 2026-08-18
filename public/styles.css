@@ -1190,6 +1190,19 @@ button { cursor: pointer; }
   accent-color: var(--accent);
 }
 
+.settings-export {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.settings-export:hover {
+  border-bottom: 1px solid var(--secondary);
+}
+
 .settings-help {
   margin: 6px 0 0;
   color: var(--accent);

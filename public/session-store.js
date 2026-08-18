@@ -113,7 +113,13 @@ export function writeStoredThink(enabled, storage = globalThis.localStorage) {
   }
 }
 
-export async function loadSessions(storage = globalThis.localStorage) {
+export function toDurableSessions(sessions = []) {
+  const { stored, images } = buildPersistedState(sessions);
+  embedImages(stored, images);
+  return stored;
+}
+
+export async function loadLocalSessions(storage = globalThis.localStorage) {
   try {
     const raw = storage?.getItem?.(SESSION_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
@@ -128,7 +134,7 @@ export async function loadSessions(storage = globalThis.localStorage) {
   }
 }
 
-export async function persistSessions(sessions, storage = globalThis.localStorage) {
+export async function writeLocalCache(sessions, storage = globalThis.localStorage) {
   const { stored, images } = buildPersistedState(sessions);
   if (globalThis.indexedDB) {
     await replaceAllImages(images);
@@ -143,6 +149,48 @@ export async function persistSessions(sessions, storage = globalThis.localStorag
     if (error?.name !== "QuotaExceededError") throw error;
     storage?.setItem?.(SESSION_KEY, JSON.stringify(stored.slice(0, 8)));
   }
+}
+
+export async function loadSessions(options = {}) {
+  const storage = options.storage ?? globalThis.localStorage;
+  const download = options.download ?? defaultDownload;
+  const upload = options.upload ?? defaultUpload;
+  const local = await loadLocalSessions(storage);
+
+  try {
+    const remote = await download();
+    if (remote.length) {
+      await writeLocalCache(remote, storage);
+      return remote;
+    }
+    if (local.length) await upload(toDurableSessions(local));
+    return local;
+  } catch {
+    return local;
+  }
+}
+
+export async function persistSessions(sessions, options = {}) {
+  const storage = options.storage ?? globalThis.localStorage;
+  const upload = options.upload ?? defaultUpload;
+  await writeLocalCache(sessions, storage);
+  await upload(toDurableSessions(sessions));
+}
+
+async function defaultDownload() {
+  const response = await fetch("/api/sessions");
+  if (!response.ok) throw new Error("无法读取本机会话");
+  const data = await response.json();
+  return restoreSessionsFromStored(data.sessions || [], []);
+}
+
+async function defaultUpload(sessions) {
+  const response = await fetch("/api/sessions", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessions })
+  });
+  if (!response.ok) throw new Error("本机会话保存失败");
 }
 
 function withPreview(image) {
